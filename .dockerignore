@@ -1,0 +1,40 @@
+# python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+
+# environments
+.env
+.venv
+venv/
+
+# mlflow — never goes inside container
+mlruns/
+
+# notebooks and scripts — not needed at runtime
+notebooks/
+scripts/
+
+# plots — not needed at runtime
+plots/
+
+# extra data files — container only needs X_train.csv
+data/pakwheels_raw.csv
+data/pakwheels_final.csv
+data/X_test.csv
+data/y_train.csv
+data/y_test.csv
+
+# old/bad model versions
+models/xgb_best_v2.json
+models/xgb_best_v3.json
+
+# misc
+*.png
+*.ipynb
+*.md
+.git/
+.gitignore

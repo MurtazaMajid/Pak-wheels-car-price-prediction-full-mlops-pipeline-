@@ -1,0 +1,16 @@
+creation_timestamp: 1778401380633
+current_stage: Production
+deployment_job_state: null
+description: null
+last_updated_timestamp: 1778401380787
+model_id: m-e1c75d4212a24c26811d94d134e77cfc
+name: pakistan-car-price-xgb
+run_id: 77b11d17f5cf40a0b12e3af349653c67
+run_link: null
+source: models:/m-e1c75d4212a24c26811d94d134e77cfc
+status: READY
+status_message: null
+storage_location: file:///C:\Users\Murta\Desktop\mlruns/824293586771857555/models/m-e1c75d4212a24c26811d94d134e77cfc/artifacts
+user_id: null
+version: 2
+workspace: default

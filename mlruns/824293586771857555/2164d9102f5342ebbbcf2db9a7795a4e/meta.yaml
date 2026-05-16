@@ -1,0 +1,14 @@
+artifact_uri: file:///C:\Users\Murta\Desktop\mlruns/824293586771857555/2164d9102f5342ebbbcf2db9a7795a4e/artifacts
+end_time: 1778068804731
+entry_point_name: ''
+experiment_id: '824293586771857555'
+lifecycle_stage: active
+run_id: 2164d9102f5342ebbbcf2db9a7795a4e
+run_name: drift_evaluation
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1778068804637
+status: 3
+tags: []
+user_id: Murta

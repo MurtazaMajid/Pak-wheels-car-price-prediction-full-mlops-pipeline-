@@ -1,0 +1,14 @@
+artifact_uri: file:///C:\Users\Murta\Desktop\mlruns/824293586771857555/77b11d17f5cf40a0b12e3af349653c67/artifacts
+end_time: 1778401376587
+entry_point_name: ''
+experiment_id: '824293586771857555'
+lifecycle_stage: active
+run_id: 77b11d17f5cf40a0b12e3af349653c67
+run_name: optuna_best
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1778401370573
+status: 3
+tags: []
+user_id: Murta

@@ -1,0 +1,11 @@
+artifact_location: file:///C:\Users\Murta\Desktop\mlruns/824293586771857555/models/m-f740419441514c59b41b055709f70bda/artifacts
+creation_timestamp: 1778068713207
+experiment_id: '824293586771857555'
+last_updated_timestamp: 1778068713207
+lifecycle_stage: active
+model_id: m-f740419441514c59b41b055709f70bda
+model_type: null
+name: model
+source_run_id: 2a353e9b0f494deb97ea28d108d8fbc9
+status: 1
+status_message: null

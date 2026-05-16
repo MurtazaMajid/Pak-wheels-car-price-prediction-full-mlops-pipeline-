@@ -1,0 +1,14 @@
+artifact_uri: file:///C:\Users\Murta\Desktop\mlruns/824293586771857555/d37483b8c5a7485b82de27f693fc2001/artifacts
+end_time: 1778068765939
+entry_point_name: ''
+experiment_id: '824293586771857555'
+lifecycle_stage: active
+run_id: d37483b8c5a7485b82de27f693fc2001
+run_name: baseline
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1778068757394
+status: 3
+tags: []
+user_id: Murta

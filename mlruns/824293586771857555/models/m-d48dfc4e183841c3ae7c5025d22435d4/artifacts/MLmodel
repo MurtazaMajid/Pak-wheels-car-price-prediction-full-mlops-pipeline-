@@ -1,0 +1,22 @@
+artifact_path: file:///C:\Users\Murta\Desktop\mlruns/824293586771857555/models/m-d48dfc4e183841c3ae7c5025d22435d4/artifacts
+flavors:
+  python_function:
+    data: model.ubj
+    env:
+      conda: conda.yaml
+      virtualenv: python_env.yaml
+    loader_module: mlflow.xgboost
+    python_version: 3.11.9
+  xgboost:
+    code: null
+    data: model.ubj
+    model_class: xgboost.sklearn.XGBRegressor
+    model_format: ubj
+    xgb_version: 3.2.0
+mlflow_version: 3.12.0
+model_id: m-d48dfc4e183841c3ae7c5025d22435d4
+model_size_bytes: 1197902
+model_uuid: m-d48dfc4e183841c3ae7c5025d22435d4
+prompts: null
+run_id: d37483b8c5a7485b82de27f693fc2001
+utc_time_created: '2026-05-06 11:59:18.129677'
