@@ -92,9 +92,10 @@ jobs:
       - name: Install dependencies
         run: |
           pip install \
+            "numpy<2.0" \
             xgboost==2.1.4 \
-            pandas numpy scikit-learn \
-            shap==0.47.2 \
+            pandas scikit-learn \
+            shap==0.46.0 \
             optuna \
             mlflow \
             yfinance \
