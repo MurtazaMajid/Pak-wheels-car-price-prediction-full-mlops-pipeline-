@@ -1,0 +1,253 @@
+name: MLOps CI/CD Pipeline
+
+on:
+  # run every Sunday at midnight
+  schedule:
+    - cron: "0 0 * * 0"
+  # run on every push to main
+  push:
+    branches: [main]
+    paths:
+      - "data/**"
+      - "scripts/**"
+      - "api/**"
+      - "models/**"
+      - "Dockerfile"
+      - "requirements.txt"
+  # allow manual trigger from GitHub UI
+  workflow_dispatch:
+    inputs:
+      force_retrain:
+        description: "Force retrain even if no drift detected"
+        required: false
+        default: "false"
+
+env:
+  DOCKER_IMAGE: murtaza23/car-price-api
+  DRIFT_THRESHOLD: "12.0"
+
+jobs:
+
+  # ── JOB 1: LEAKAGE CHECK ────────────────────────────────────────────────────
+  leakage-check:
+    name: Data Leakage Validation
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install pandas numpy
+
+      - name: Run leakage check
+        run: python scripts/check_leakage.py
+
+  # ── JOB 2: DRIFT CHECK ──────────────────────────────────────────────────────
+  drift-check:
+    name: Drift Detection
+    runs-on: ubuntu-latest
+    needs: leakage-check
+    outputs:
+      drift_detected: ${{ steps.drift.outputs.drift_detected }}
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install xgboost==2.1.4 pandas numpy scikit-learn
+
+      - name: Run drift check
+        id: drift
+        run: |
+          set +e
+          python scripts/drift_check.py --threshold ${{ env.DRIFT_THRESHOLD }}
+          EXIT_CODE=$?
+          set -e
+          if [ $EXIT_CODE -eq 1 ]; then
+            echo "drift_detected=true" >> $GITHUB_OUTPUT
+            echo "Drift detected — retraining will be triggered"
+          else
+            echo "drift_detected=false" >> $GITHUB_OUTPUT
+            echo "No drift — skipping retrain"
+          fi
+
+      - name: Upload drift report
+        uses: actions/upload-artifact@v4
+        with:
+          name: drift-report
+          path: reports/drift_report.json
+
+  # ── JOB 3: RETRAIN ──────────────────────────────────────────────────────────
+  retrain:
+    name: Retrain Model
+    runs-on: ubuntu-latest
+    needs: drift-check
+    if: |
+      needs.drift-check.outputs.drift_detected == 'true' ||
+      github.event.inputs.force_retrain == 'true'
+    outputs:
+      model_promoted: ${{ steps.compare.outputs.model_promoted }}
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          pip install \
+            xgboost==2.1.4 \
+            pandas numpy scikit-learn \
+            shap==0.46.0 \
+            optuna \
+            mlflow \
+            yfinance \
+            matplotlib
+
+      - name: Prepare data
+        run: python scripts/prepare_data.py
+
+      - name: Run leakage check on fresh data
+        run: python scripts/check_leakage.py
+
+      - name: Retrain model
+        run: |
+          # save new model as xgb_new.json instead of overwriting current
+          python -c "
+          import os, sys
+          # patch train_model to save as xgb_new.json
+          content = open('scripts/train_model.py').read()
+          content = content.replace('xgb_best.json', 'xgb_new.json')
+          open('/tmp/train_new.py', 'w').write(content)
+          "
+          python /tmp/train_new.py
+
+      - name: Compare new vs current model
+        id: compare
+        run: |
+          set +e
+          python scripts/compare_models.py
+          EXIT_CODE=$?
+          set -e
+          if [ $EXIT_CODE -eq 1 ]; then
+            echo "model_promoted=true" >> $GITHUB_OUTPUT
+            echo "New model promoted"
+          else
+            echo "model_promoted=false" >> $GITHUB_OUTPUT
+            echo "New model rejected, keeping current"
+          fi
+
+      - name: Upload MLflow runs
+        uses: actions/upload-artifact@v4
+        with:
+          name: mlruns
+          path: mlruns/
+
+      - name: Upload comparison report
+        uses: actions/upload-artifact@v4
+        with:
+          name: comparison-report
+          path: reports/comparison_report.json
+
+      - name: Commit new model to repo
+        if: steps.compare.outputs.model_promoted == 'true'
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add models/xgb_best.json reports/
+          git commit -m "chore: auto-retrain — new model promoted [skip ci]"
+          git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ── JOB 4: DOCKER BUILD & PUSH ──────────────────────────────────────────────
+  docker:
+    name: Build & Push Docker Image
+    runs-on: ubuntu-latest
+    needs: retrain
+    if: needs.retrain.outputs.model_promoted == 'true'
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          # pull latest (includes newly committed model)
+          ref: main
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.DOCKER_IMAGE }}:latest
+            ${{ env.DOCKER_IMAGE }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Image summary
+        run: |
+          echo "Docker image pushed:"
+          echo "  ${{ env.DOCKER_IMAGE }}:latest"
+          echo "  ${{ env.DOCKER_IMAGE }}:${{ github.sha }}"
+
+  # ── JOB 5: DEPLOY TO EC2 (placeholder) ─────────────────────────────────────
+  deploy:
+    name: Deploy to EC2
+    runs-on: ubuntu-latest
+    needs: docker
+    if: needs.docker.result == 'success'
+
+    steps:
+      - name: Deploy placeholder
+        run: |
+          echo "=========================================="
+          echo "EC2 DEPLOY — coming soon"
+          echo "Will SSH into EC2 and run:"
+          echo "  docker pull murtaza23/car-price-api:latest"
+          echo "  docker stop car-price-api"
+          echo "  docker run -d -p 8000:8000 car-price-api"
+          echo "=========================================="
+
+      # uncomment this block when AWS EC2 is ready:
+      # - name: SSH and deploy
+      #   uses: appleboy/ssh-action@v1
+      #   with:
+      #     host:     ${{ secrets.EC2_HOST }}
+      #     username: ubuntu
+      #     key:      ${{ secrets.EC2_SSH_KEY }}
+      #     script: |
+      #       docker pull murtaza23/car-price-api:latest
+      #       docker stop car-price-api || true
+      #       docker rm   car-price-api || true
+      #       docker run -d -p 8000:8000 --name car-price-api \
+      #         murtaza23/car-price-api:latest
+      #       docker image prune -f
