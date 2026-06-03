@@ -84,18 +84,18 @@ jobs:
       model_promoted: ${{ steps.compare.outputs.model_promoted }}
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.10"
-        
 
       - name: Install dependencies
         run: |
           pip install \
             "numpy<2.0" \
-            xgboost==2.1.4 \
+            "xgboost==2.1.4" \
             pandas scikit-learn \
-            shap==0.46.0 \
+            "shap==0.46.0" \
             optuna \
             mlflow \
             yfinance \
@@ -107,14 +107,15 @@ jobs:
       - name: Run leakage check on fresh data
         run: python scripts/check_leakage.py
 
-      - name: Retrain model
+      - name: Patch and run retrain script
+        shell: python
         run: |
-          python -c "
           content = open('scripts/train_model.py').read()
           content = content.replace('xgb_best.json', 'xgb_new.json')
-          open('/tmp/train_new.py', 'w').write(content)
-          "
-          python3.10 /tmp/train_new.py
+          open('scripts/train_new.py', 'w').write(content)
+
+      - name: Run retrain
+        run: python scripts/train_new.py
 
       - name: Compare new vs current model
         id: compare
