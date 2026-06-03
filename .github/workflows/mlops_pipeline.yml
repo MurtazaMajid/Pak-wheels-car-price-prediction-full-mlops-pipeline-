@@ -113,7 +113,7 @@ jobs:
           content = content.replace('xgb_best.json', 'xgb_new.json')
           open('/tmp/train_new.py', 'w').write(content)
           "
-          python /tmp/train_new.py
+          python3.10 /tmp/train_new.py
 
       - name: Compare new vs current model
         id: compare
