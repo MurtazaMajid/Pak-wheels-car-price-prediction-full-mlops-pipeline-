@@ -131,10 +131,7 @@ jobs:
 
       - name: Retrain model
         run: |
-          # save new model as xgb_new.json instead of overwriting current
           python -c "
-          import os, sys
-          # patch train_model to save as xgb_new.json
           content = open('scripts/train_model.py').read()
           content = content.replace('xgb_best.json', 'xgb_new.json')
           open('/tmp/train_new.py', 'w').write(content)
@@ -190,7 +187,6 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
         with:
-          # pull latest (includes newly committed model)
           ref: main
 
       - name: Set up Docker Buildx
@@ -199,8 +195,8 @@ jobs:
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ vars.DOCKERHUB_TOKEN }}
 
       - name: Build and push
         uses: docker/build-push-action@v5
@@ -237,7 +233,7 @@ jobs:
           echo "  docker run -d -p 8000:8000 car-price-api"
           echo "=========================================="
 
-      # uncomment this block when AWS EC2 is ready:
+      # uncomment when AWS EC2 is ready:
       # - name: SSH and deploy
       #   uses: appleboy/ssh-action@v1
       #   with:
