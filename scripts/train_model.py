@@ -152,33 +152,19 @@ print(f"\nModel saved → {model_path}")
 # ══════════════════════════════════════════════════════════
 # STEP 3 — SHAP
 # ══════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════
+# STEP 3 — FEATURE IMPORTANCE (XGBoost built-in)
+# ══════════════════════════════════════════════════════════
 print("\n" + "=" * 55)
-print("STEP 3: SHAP FEATURE IMPORTANCE")
+print("STEP 3: FEATURE IMPORTANCE")
 print("=" * 55)
 
-explainer   = shap.TreeExplainer(model_best)
-shap_values = explainer.shap_values(X_test)
-
-plt.figure(figsize=(11, 7))
-shap.summary_plot(shap_values, X_test, plot_type="bar", show=False)
-plt.tight_layout()
-p = os.path.join(PLOTS_DIR, "shap_importance.png")
-plt.savefig(p, dpi=150); plt.close()
-print(f"Saved → {p}")
-
-plt.figure(figsize=(11, 7))
-shap.summary_plot(shap_values, X_test, show=False)
-plt.tight_layout()
-p = os.path.join(PLOTS_DIR, "shap_beeswarm.png")
-plt.savefig(p, dpi=150); plt.close()
-print(f"Saved → {p}")
-
-mean_shap = pd.DataFrame({
-    "feature":       X_train.columns,
-    "mean_abs_shap": np.abs(shap_values).mean(axis=0),
-}).sort_values("mean_abs_shap", ascending=False)
-print("\nFeature ranking by SHAP:")
-print(mean_shap.to_string(index=False))
+importance = model_best.get_booster().get_score(importance_type='gain')
+total = sum(importance.values()) or 1
+feat_imp = sorted(importance.items(), key=lambda x: x[1], reverse=True)
+print("\nFeature ranking by gain:")
+for f, v in feat_imp:
+    print(f"  {f:20s}: {v/total:.4f}")
 
 # ══════════════════════════════════════════════════════════
 # STEP 4 — DRIFT BY YEAR
