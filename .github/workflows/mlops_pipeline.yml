@@ -99,7 +99,8 @@ jobs:
             pandas scikit-learn \
             "shap==0.46.0" \
             optuna \
-            mlflow \
+            "mlflow==2.22.1" \
+            sqlalchemy \
             yfinance \
             matplotlib
 
@@ -145,7 +146,7 @@ jobs:
       - name: Commit new model to repo
         if: steps.compare.outputs.model_promoted == 'true'
         run: |
-          git config user.name  "github-actions[bot]"
+          git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add models/xgb_best.json reports/
           git commit -m "chore: auto-retrain — new model promoted [skip ci]"
@@ -190,10 +191,11 @@ jobs:
       - name: Deploy placeholder
         run: |
           echo "EC2 DEPLOY — coming soon"
-          echo "docker pull murtaza23/car-price-api:latest"
-          echo "docker stop car-price-api && docker run -d -p 8000:8000 car-price-api"
+          echo "docker pull ${{ env.DOCKER_IMAGE }}:latest"
+          echo "docker stop car-price-api || true"
+          echo "docker run -d -p 8000:8000 --name car-price-api ${{ env.DOCKER_IMAGE }}:latest"
 
-      # uncomment when AWS EC2 is ready:
+      # Uncomment when AWS EC2 is ready:
       # - name: SSH and deploy
       #   uses: appleboy/ssh-action@v1
       #   with:
@@ -201,9 +203,9 @@ jobs:
       #     username: ubuntu
       #     key:      ${{ secrets.EC2_SSH_KEY }}
       #     script: |
-      #       docker pull murtaza23/car-price-api:latest
+      #       docker pull ${{ env.DOCKER_IMAGE }}:latest
       #       docker stop car-price-api || true
       #       docker rm   car-price-api || true
       #       docker run -d -p 8000:8000 --name car-price-api \
-      #         murtaza23/car-price-api:latest
+      #         ${{ env.DOCKER_IMAGE }}:latest
       #       docker image prune -f
