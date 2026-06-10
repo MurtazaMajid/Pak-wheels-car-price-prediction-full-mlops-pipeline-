@@ -18,12 +18,12 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR     = os.path.join(PROJECT_ROOT, "data")
 MODELS_DIR   = os.path.join(PROJECT_ROOT, "models")
 PLOTS_DIR    = os.path.join(PROJECT_ROOT, "plots")
-MLRUNS_DIR   = os.path.join(PROJECT_ROOT, "mlruns")
+MLFLOW_DB = os.path.join(PROJECT_ROOT, "mlflow.db")
 
 os.makedirs(MODELS_DIR, exist_ok=True)
-os.makedirs(PLOTS_DIR,  exist_ok=True)
+os.makedirs(PLOTS_DIR, exist_ok=True)
 
-mlflow.set_tracking_uri(f"file:///{MLRUNS_DIR.replace(os.sep, '/')}")
+mlflow.set_tracking_uri(f"sqlite:///{MLFLOW_DB}")
 mlflow.set_experiment("pakistan-car-price")
 
 print("=" * 55)
