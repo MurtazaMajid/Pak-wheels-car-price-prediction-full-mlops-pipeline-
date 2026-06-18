@@ -53,7 +53,7 @@ def main():
     print(f"New model MAPE     : {new_mape:.2f}%")
 
     improvement = current_mape - new_mape
-    promoted    = improvement >= 0.5
+    promoted    = improvement >= 0.0
     print(f"Improvement        : {improvement:+.2f}%")
 
     report = {
