@@ -3,7 +3,6 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import xgboost as xgb
-import shap
 import optuna
 import mlflow
 import mlflow.xgboost
@@ -18,10 +17,10 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR     = os.path.join(PROJECT_ROOT, "data")
 MODELS_DIR   = os.path.join(PROJECT_ROOT, "models")
 PLOTS_DIR    = os.path.join(PROJECT_ROOT, "plots")
-MLFLOW_DB = os.path.join(PROJECT_ROOT, "mlflow.db")
+MLFLOW_DB    = os.path.join(PROJECT_ROOT, "mlflow.db")
 
 os.makedirs(MODELS_DIR, exist_ok=True)
-os.makedirs(PLOTS_DIR, exist_ok=True)
+os.makedirs(PLOTS_DIR,  exist_ok=True)
 
 mlflow.set_tracking_uri(f"sqlite:///{MLFLOW_DB}")
 mlflow.set_experiment("pakistan-car-price")
@@ -67,13 +66,13 @@ print("STEP 1: BASELINE MODEL")
 print("=" * 55)
 
 BASELINE_PARAMS = {
-    "n_estimators":        300,
-    "max_depth":           6,
-    "learning_rate":       0.1,
-    "subsample":           0.8,
-    "colsample_bytree":    0.8,
-    "random_state":        42,
-    "tree_method":         "hist",
+    "n_estimators":     300,
+    "max_depth":        6,
+    "learning_rate":    0.1,
+    "subsample":        0.8,
+    "colsample_bytree": 0.8,
+    "random_state":     42,
+    "tree_method":      "hist",
 }
 
 with mlflow.start_run(run_name="baseline"):
@@ -84,7 +83,7 @@ with mlflow.start_run(run_name="baseline"):
     metrics_base = eval_metrics(y_test, model_base.predict(X_test))
     mlflow.log_params({**BASELINE_PARAMS, "feature_version": "v1"})
     mlflow.log_metrics(metrics_base)
-    mlflow.xgboost.log_model(model_base, name="model")
+    mlflow.xgboost.log_model(model_base, artifact_path="model")
 
 print("\nBASELINE RESULTS:")
 for k, v in metrics_base.items():
@@ -137,7 +136,7 @@ with mlflow.start_run(run_name="optuna_best") as run:
     metrics_best = eval_metrics(y_test, model_best.predict(X_test))
     mlflow.log_params({**best_params, "feature_version": "v1", "n_features": 8})
     mlflow.log_metrics(metrics_best)
-    mlflow.xgboost.log_model(model_best, name="model")
+    mlflow.xgboost.log_model(model_best, artifact_path="model")
     best_run_id = run.info.run_id
 
 print("\nBEST MODEL RESULTS:")
@@ -145,15 +144,12 @@ for k, v in metrics_best.items():
     print(f"  {k:6s}: {v:,.2f}")
 
 # save model
-model_path = os.path.join(MODELS_DIR, "xgb_best.json")
+model_path = os.path.join(MODELS_DIR, "xgb_new.json")
 model_best.save_model(model_path)
 print(f"\nModel saved → {model_path}")
 
 # ══════════════════════════════════════════════════════════
-# STEP 3 — SHAP
-# ══════════════════════════════════════════════════════════
-# ══════════════════════════════════════════════════════════
-# STEP 3 — FEATURE IMPORTANCE (XGBoost built-in)
+# STEP 3 — FEATURE IMPORTANCE
 # ══════════════════════════════════════════════════════════
 print("\n" + "=" * 55)
 print("STEP 3: FEATURE IMPORTANCE")
@@ -173,7 +169,6 @@ print("\n" + "=" * 55)
 print("STEP 4: DRIFT EVALUATION BY YEAR")
 print("=" * 55)
 
-# reload test data with year info
 df_full = pd.read_csv(os.path.join(DATA_DIR, "pakwheels_final.csv"))
 test_idx = df_full["manufacture_year"] >= 2023
 df_test  = df_full[test_idx].reset_index(drop=True)
@@ -187,15 +182,15 @@ for yr in sorted(df_test["manufacture_year"].unique()):
     y_yr = y_test_drift[mask.values]
     if len(X_yr) == 0:
         continue
-    y_p  = model_best.predict(X_yr)
-    m    = eval_metrics(y_yr, y_p)
-    usd  = df_test.loc[mask, "usd_pkr"].mean() if "usd_pkr" in df_test.columns else 280
-    results.append({"year": int(yr), "n": int(len(X_yr)), "usd_pkr": round(usd, 1), **{k: round(v, 2) for k, v in m.items()}})
+    y_p = model_best.predict(X_yr)
+    m   = eval_metrics(y_yr, y_p)
+    usd = df_test.loc[mask, "usd_pkr"].mean() if "usd_pkr" in df_test.columns else 280
+    results.append({"year": int(yr), "n": int(len(X_yr)), "usd_pkr": round(usd, 1),
+                    **{k: round(v, 2) for k, v in m.items()}})
 
 df_drift = pd.DataFrame(results)
 print(df_drift[["year", "n", "rmse", "mape", "r2", "usd_pkr"]].to_string(index=False))
 
-# drift plot
 fig, ax1 = plt.subplots(figsize=(10, 5))
 ax1.bar(df_drift["year"], df_drift["mape"], color="#C0392B", alpha=0.75, label="MAPE %")
 ax1.set_ylabel("MAPE (%)"); ax1.set_xlabel("Year")
@@ -237,7 +232,6 @@ try:
 except Exception as e:
     print(f"Registration note: {e}")
 
-# ══════════════════════════════════════════════════════════
 print("\n" + "=" * 55)
 print("FINAL SUMMARY")
 print("=" * 55)
