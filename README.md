@@ -12,7 +12,8 @@
 [![SHAP](https://img.shields.io/badge/SHAP-Explainability-FF4B4B?style=for-the-badge)](https://shap.readthedocs.io/)
 [![Optuna](https://img.shields.io/badge/Optuna-Tuning-6C5CE7?style=for-the-badge)](https://optuna.org/)
 [![scikit-learn](https://img.shields.io/badge/scikit--learn-Features-F7931E?style=for-the-badge&logo=scikit-learn&logoColor=white)](https://scikit-learn.org/)
-
+[![AWS](https://img.shields.io/badge/AWS-EC2-FF9900?style=for-the-badge&logo=amazonaws&logoColor=white)](http://13.61.178.169:8000/docs)
+[![GitHub Actions](https://img.shields.io/badge/GitHub_Actions-CI%2FCD-2088FF?style=for-the-badge&logo=githubactions&logoColor=white)](https://github.com/MurtazaMajid/Pak-wheels-car-price-prediction-full-mlops-pipeline-/actions)
 <br/>
 
 ![Status](https://img.shields.io/badge/Status-Production%20Ready-brightgreen?style=flat-square)
@@ -676,7 +677,227 @@ EXPOSE 8000
 
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
 ```
+---
 
+## GitHub Actions CI/CD Pipeline
+
+The entire MLOps lifecycle is automated using GitHub Actions. Every Sunday at midnight (or on manual trigger), the pipeline runs automatically, checking for drift, retraining if needed, and deploying the new model to production without any manual intervention.
+
+### Pipeline Flow
+
+```
+Trigger (scheduled / push / manual)
+              |
+              v
++---------------------------+
+|   JOB 1: Leakage Check    |
+|   check_leakage.py        |
+|   Validates train/test    |
+|   split integrity         |
++-------------+-------------+
+              |
+              v
++---------------------------+
+|   JOB 2: Drift Detection  |
+|   drift_check.py          |
+|   Computes MAPE on test   |
+|   set by year             |
+|                           |
+|   MAPE <= 12% -> STOP     |
+|   MAPE >  12% -> RETRAIN  |
++-------------+-------------+
+              |
+        drift detected?
+              |
+              v
++---------------------------+
+|   JOB 3: Retrain Model    |
+|   prepare_data.py         |
+|   train_model.py          |
+|   Optuna 50 trials        |
+|   MLflow logging          |
+|   compare_models.py       |
+|                           |
+|   improvement < 0.5%      |
+|        -> STOP            |
+|   improvement >= 0.5%     |
+|        -> PROMOTE         |
++-------------+-------------+
+              |
+        model promoted?
+              |
+              v
++---------------------------+
+|   JOB 4: Docker Build     |
+|   docker build            |
+|   docker push             |
+|   -> murtaza23/           |
+|     car-price-api:latest  |
+|   -> murtaza23/           |
+|     car-price-api:{sha}   |
++-------------+-------------+
+              |
+              v
++---------------------------+
+|   JOB 5: Deploy to EC2    |
+|   SSH into EC2            |
+|   docker pull latest      |
+|   docker stop old         |
+|   docker run new          |
+|   API live at             |
+|   13.61.178.169:8000      |
++---------------------------+
+```
+
+### Trigger Conditions
+
+| Trigger | When | What runs |
+|:--------|:-----|:----------|
+| Scheduled | Every Sunday midnight UTC | Full pipeline |
+| Push to main | When `data/`, `scripts/`, `api/`, `models/`, or `Dockerfile` changes | Full pipeline |
+| Manual (`workflow_dispatch`) | Any time from GitHub Actions UI | Full pipeline, with option to force retrain |
+
+### Retraining Logic
+
+The pipeline only retrains when drift is detected, avoiding unnecessary compute:
+
+```python
+# drift_check.py
+overall_mape > threshold          # overall MAPE exceeds 12%
+OR
+max(mape_2024, mape_2025) > 12.0  # recent years show degradation
+```
+
+### Model Promotion Logic
+
+A newly retrained model is only promoted to production if it outperforms the current model:
+
+```python
+# compare_models.py
+improvement = current_mape - new_mape
+promoted = improvement >= 0.5  # must be at least 0.5% better
+```
+
+If the new model is worse or only marginally better, the current model stays in production. This prevents deploying a worse model due to randomness in the Optuna search.
+
+### GitHub Secrets and Variables Used
+
+| Name | Type | Purpose |
+|:-----|:-----|:--------|
+| `DOCKERHUB_TOKEN` | Secret | Docker Hub authentication for pushing images |
+| `EC2_SSH_KEY` | Secret | Private key for SSH into EC2 instance |
+| `DOCKERHUB_USERNAME` | Variable | Docker Hub username (murtaza23) |
+| `EC2_HOST` | Variable | EC2 public IP (13.61.178.169) |
+
+### Artifacts Saved Per Run
+
+Every pipeline run saves:
+- `drift-report/drift_report.json` — per-year MAPE breakdown
+- `retrain-artifacts/mlruns/` — MLflow experiment data
+- `retrain-artifacts/reports/comparison_report.json` — old vs new model comparison
+
+---
+
+## AWS EC2 Deployment
+
+The FastAPI application is deployed on an AWS EC2 instance running Docker. The instance pulls the latest image from Docker Hub and runs the container on port 8000.
+
+### Infrastructure
+
+| Property | Value |
+|:---------|:------|
+| Cloud | AWS |
+| Region | eu-north-1 (Stockholm) |
+| Instance type | t3.micro |
+| OS | Ubuntu 26.04 LTS |
+| Docker version | 29.1.3 |
+| Public IP | 13.61.178.169 |
+| Live API | http://13.61.178.169:8000 |
+| Swagger UI | http://13.61.178.169:8000/docs |
+
+### Deployment Architecture
+
+```
+GitHub Actions (CI/CD)
+        |
+        | docker push
+        v
+  Docker Hub
+  murtaza23/car-price-api:latest
+        |
+        | SSH + docker pull
+        v
+  AWS EC2 (t3.micro)
+  Ubuntu 26.04
+        |
+        | docker run -p 8000:8000
+        v
+  FastAPI Container
+  http://13.61.178.169:8000
+        |
+        | REST API calls
+        v
+  Frontend (Lovable)
+  Pakistan Car Price Predictor
+```
+
+### EC2 Setup (one-time)
+
+```bash
+# Connect via EC2 Instance Connect (browser terminal)
+# No SSH key file needed
+
+# Install Docker
+sudo apt-get update -y
+sudo apt-get install -y docker.io
+sudo systemctl start docker
+sudo systemctl enable docker
+sudo usermod -aG docker ubuntu
+
+# Pull and run the image
+sudo docker pull murtaza23/car-price-api:latest
+sudo docker run -d -p 8000:8000 --name car-price-api \
+  murtaza23/car-price-api:latest
+
+# Verify it is running
+sudo docker ps
+```
+
+### Security Group Rules
+
+| Type | Port | Source | Purpose |
+|:-----|:-----|:-------|:--------|
+| SSH | 22 | 0.0.0.0/0 | EC2 Instance Connect |
+| HTTP | 80 | 0.0.0.0/0 | HTTP traffic |
+| HTTPS | 443 | 0.0.0.0/0 | HTTPS traffic |
+| Custom TCP | 8000 | 0.0.0.0/0 | FastAPI application |
+
+### Auto-Deployment
+
+Every time GitHub Actions promotes a new model, EC2 is updated automatically:
+
+```bash
+# Run by GitHub Actions via appleboy/ssh-action
+sudo docker pull murtaza23/car-price-api:latest
+sudo docker stop car-price-api || true
+sudo docker rm car-price-api || true
+sudo docker run -d -p 8000:8000 --name car-price-api \
+  murtaza23/car-price-api:latest
+sudo docker image prune -f
+```
+
+### Why EC2 Over PaaS (Render/Railway/HuggingFace)
+
+| Factor | EC2 | Render/Railway |
+|:-------|:----|:---------------|
+| Control | Full server control | Limited |
+| Docker | Native | Abstracted |
+| CI/CD integration | SSH deploy via Actions | Git-based only |
+| Cost | Free tier (t3.micro) | Free tier available |
+| MLOps realism | Matches real production | Simplified |
+| Portfolio signal | Strong, real cloud infra | Weaker |
+
+EC2 was chosen because it reflects how ML APIs are actually deployed at companies, containerised, on cloud VMs, with automated CI/CD pipelines handling zero-touch deployment.
 ### Build and Run
 
 ```bash
