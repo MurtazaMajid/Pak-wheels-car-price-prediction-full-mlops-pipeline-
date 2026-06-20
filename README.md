@@ -14,6 +14,7 @@
 [![scikit-learn](https://img.shields.io/badge/scikit--learn-Features-F7931E?style=for-the-badge&logo=scikit-learn&logoColor=white)](https://scikit-learn.org/)
 [![AWS](https://img.shields.io/badge/AWS-EC2-FF9900?style=for-the-badge&logo=amazonaws&logoColor=white)](http://13.61.178.169:8000/docs)
 [![GitHub Actions](https://img.shields.io/badge/GitHub_Actions-CI%2FCD-2088FF?style=for-the-badge&logo=githubactions&logoColor=white)](https://github.com/MurtazaMajid/Pak-wheels-car-price-prediction-full-mlops-pipeline-/actions)
+
 <br/>
 
 ![Status](https://img.shields.io/badge/Status-Production%20Ready-brightgreen?style=flat-square)
@@ -22,7 +23,7 @@
 &nbsp;
 ![MAPE](https://img.shields.io/badge/MAPE-10.85%25-orange?style=flat-square)
 &nbsp;
-![R2](https://img.shields.io/badge/R²-0.82-purple?style=flat-square)
+![R2](https://img.shields.io/badge/R%C2%B2-0.82-purple?style=flat-square)
 &nbsp;
 ![Features](https://img.shields.io/badge/Features-8-red?style=flat-square)
 
@@ -47,6 +48,8 @@
 - [MLflow Experiment Tracking](#mlflow-experiment-tracking)
 - [FastAPI Serving](#fastapi-serving)
 - [Docker Containerisation](#docker-containerisation)
+- [GitHub Actions CI/CD Pipeline](#github-actions-cicd-pipeline)
+- [AWS EC2 Deployment](#aws-ec2-deployment)
 - [Key Technical Decisions](#key-technical-decisions)
 - [Tech Stack](#tech-stack)
 - [Repository Structure](#repository-structure)
@@ -59,7 +62,7 @@
 
 ## Overview
 
-This project builds a complete, production-grade MLOps pipeline for predicting used car prices in Pakistan using data scraped from **Pakwheels.com** — the largest automotive marketplace in Pakistan.
+This project builds a complete, production-grade MLOps pipeline for predicting used car prices in Pakistan using data scraped from **Pakwheels.com**, the largest automotive marketplace in Pakistan.
 
 The pipeline covers every stage a real ML engineer would implement in a production setting:
 
@@ -74,8 +77,10 @@ The pipeline covers every stage a real ML engineer would implement in a producti
 - **MLflow tracking** — all experiments logged with parameters, metrics, and model artefacts
 - **FastAPI serving** — REST API with `/predict`, `/drift-summary`, and `/health` endpoints
 - **Docker containerisation** — fully containerised application ready for cloud deployment
+- **GitHub Actions CI/CD** — automated weekly drift check, retrain, and deployment pipeline
+- **AWS EC2 deployment** — live API running on cloud infrastructure at http://13.61.178.169:8000
 
-The result is a deployable API that takes car specifications as input and returns a predicted price in PKR with a confidence range and SHAP-based feature attribution — explaining *why* the model made each prediction.
+The result is a deployable API that takes car specifications as input and returns a predicted price in PKR with a confidence range and SHAP-based feature attribution, explaining why the model made each prediction.
 
 ---
 
@@ -86,31 +91,27 @@ The result is a deployable API that takes car specifications as input and return
 | Metric | Score |
 |:-------|:------|
 | MAPE (Mean Absolute Percentage Error) | **10.85%** |
-| R² Score | **0.82** |
+| R2 Score | **0.82** |
 | RMSE | ~850,000 PKR |
 | Training samples | 6,543 |
 | Test samples | 1,452 |
-| Feature set | V1 — 8 features |
+| Feature set | V1, 8 features |
 
 ### Drift Analysis (Temporal Validation)
 
-| Year | MAPE | R² | Interpretation |
+| Year | MAPE | R2 | Interpretation |
 |:-----|:-----|:---|:---------------|
-| 2023 | 7.54% | 0.86 | Model performs well — market conditions similar to training data |
-| 2024 | 10.83% | 0.81 | Mild degradation — PKR devaluation begins to shift prices |
-| 2025 | 14.87% | 0.74 | Clear drift — post-2022 data shows significant market shift |
-
-The drift story is central to this project. The model was trained on 2015–2022 listings. The temporal validation shows a consistent degradation pattern as data moves further from the training distribution — MAPE rises from 7.5% to nearly 15% over three years. This is the evidence that motivates retraining when new data arrives.
+| 2023 | 7.54% | 0.86 | Model performs well, market conditions similar to training data |
+| 2024 | 10.83% | 0.81 | Mild degradation, PKR devaluation begins to shift prices |
+| 2025 | 14.87% | 0.74 | Clear drift, post-2022 data shows significant market shift |
 
 ### Ablation Study — Feature Set Comparison
 
-| Feature Set | Features | MAPE | R² | Winner |
+| Feature Set | Features | MAPE | R2 | Winner |
 |:------------|:---------|:-----|:---|:-------|
-| V1 | 8 (core) | 10.85% | 0.82 | ✅ Yes |
+| V1 | 8 (core) | 10.85% | 0.82 | Yes |
 | V2 | 12 (V1 + extras) | 11.2% | 0.81 | No |
 | V3 | 6 (reduced) | 12.1% | 0.79 | No |
-
-V1 wins on both MAPE and R². Adding more features (V2) does not improve performance — it introduces noise. Removing features (V3) predictably hurts. V1's 8-feature set is the sweet spot.
 
 ---
 
@@ -124,88 +125,44 @@ V1 wins on both MAPE and R². Adding more features (V2) does not improve perform
 |   Scraped fields: make, model, year, mileage, engine_cc,               |
 |                   fuel_type, transmission, price_pkr                   |
 |   Raw rows: 7,995                                                      |
-|   Issues:   missing values, duplicate listings, price outliers,         |
-|             inconsistent mileage units, currency in PKR (volatile)     |
 +===================================+====================================+
                                     |
                       +-------------v-------------+
                       |          STEP 1           |
                       |       DATA CLEANING       |
-                      |                           |
                       |  drop duplicates          |
                       |  fill / drop nulls        |
                       |  clip price outliers      |
                       |  standardise mileage      |
-                      |  filter year range        |
                       |  → pakwheels_final.csv    |
-                      |    (7,491 clean rows)     |
                       +-------------+-------------+
                                     |
                       +-------------v-------------+
                       |          STEP 2           |
                       |    LEAKAGE VALIDATION     |
-                      |                           |
                       |  time-based train/test    |
                       |  split (pre/post 2022)    |
-                      |  check no future cols     |
-                      |  verify no ID leakage     |
                       |  → check_leakage.py       |
                       +-------------+-------------+
                                     |
                       +-------------v-------------+
                       |          STEP 3           |
                       |           EDA             |
-                      |                           |
-                      |  price distribution       |
-                      |  price vs USD/PKR rate    |
-                      |  top makes by volume      |
-                      |  price by make            |
-                      |  mileage vs price         |
-                      |  correlation heatmap      |
-                      |  fuel type breakdown      |
-                      |  transmission breakdown   |
-                      |  → 8 plots saved          |
+                      |  8 plots saved            |
                       +-------------+-------------+
                                     |
                       +-------------v-------------+
                       |          STEP 4           |
                       |    FEATURE ENGINEERING    |
-                      |                           |
                       |  target encode make       |
                       |  target encode model      |
-                      |  encode fuel_type         |
-                      |  encode transmission      |
-                      |  add USD/PKR rate         |
-                      |                           |
-                      |  Ablation study:          |
-                      |  V1 (8) vs V2 (12)        |
-                      |       vs V3 (6)           |
-                      |  → V1 wins                |
+                      |  Ablation: V1 wins        |
                       +-------------+-------------+
-                                    |
-                      +===========================================+
-                      |         FINAL FEATURE SET (V1)           |
-                      |                                          |
-                      |  manufacture_year   mileage_km           |
-                      |  engine_cc          fuel_type_enc         |
-                      |  transmission_enc   usd_pkr              |
-                      |  make_enc           model_enc            |
-                      |                                          |
-                      |  Target: log1p(price_pkr)                |
-                      |  Train: 6,543 rows (≤ 2022)              |
-                      |  Test:  1,452 rows (> 2022)              |
-                      +===========================================+
                                     |
                       +-------------v-------------+
                       |          STEP 5           |
                       |     XGBOOST TRAINING      |
-                      |                           |
                       |  Optuna: 50 trials        |
-                      |  Objective: minimise MAPE |
-                      |  Tree method: hist        |
-                      |  Early stopping: 50 rounds|
-                      |                           |
-                      |  Best params logged       |
                       |  → xgb_best.json          |
                       +-------------+-------------+
                                     |
@@ -213,49 +170,33 @@ V1 wins on both MAPE and R². Adding more features (V2) does not improve perform
               |                                              |
   +===========v===========+                     +===========v===========+
   |   SHAP EXPLAINABILITY |                     |   DRIFT MONITORING    |
-  |                       |                     |                       |
-  |  TreeExplainer        |                     |  Temporal validation  |
-  |  Feature importance   |                     |  by manufacture year  |
-  |  Beeswarm plot        |                     |                       |
-  |  Per-prediction SHAP  |                     |  2023: MAPE 7.54%     |
-  |  values at inference  |                     |  2024: MAPE 10.83%    |
-  |                       |                     |  2025: MAPE 14.87%    |
+  |  TreeExplainer        |                     |  2023: MAPE 7.54%     |
+  |  Feature importance   |                     |  2024: MAPE 10.83%    |
+  |  Beeswarm plot        |                     |  2025: MAPE 14.87%    |
   +=======================+                     +=======================+
                                     |
                       +-------------v-------------+
                       |          STEP 6           |
                       |    MLFLOW TRACKING        |
-                      |                           |
                       |  3 experiments logged     |
-                      |  params: all Optuna best  |
-                      |  metrics: MAPE, R², RMSE  |
-                      |  artefacts: model file    |
-                      |  model registry:          |
-                      |  pakistan-car-price-xgb   |
+                      |  model registry           |
                       |  → Production stage set   |
                       +-------------+-------------+
                                     |
                       +-------------v-------------+
                       |          STEP 7           |
                       |      FASTAPI SERVING      |
-                      |                           |
                       |  POST /predict            |
                       |  GET  /health             |
                       |  GET  /drift-summary      |
-                      |  GET  /drift-report       |
-                      |  GET  /fuel-types         |
-                      |  GET  /transmission-types |
                       +-------------+-------------+
                                     |
                       +-------------v-------------+
                       |          STEP 8           |
-                      |   DOCKER CONTAINER        |
-                      |                           |
-                      |  python:3.11-slim base    |
-                      |  all deps installed       |
-                      |  model + data copied in   |
-                      |  port 8000 exposed        |
-                      |  → docker run ready       |
+                      |   DOCKER + EC2 DEPLOY     |
+                      |  docker build + push      |
+                      |  SSH deploy to EC2        |
+                      |  → live at port 8000      |
                       +---------------------------+
 ```
 
@@ -270,9 +211,9 @@ V1 wins on both MAPE and R². Adding more features (V2) does not improve perform
 | Clean rows | 7,491 |
 | Train rows | 6,543 |
 | Test rows | 1,452 |
-| Year range | 2015 – 2025 |
+| Year range | 2015 to 2025 |
 | Target | `price_pkr` (Pakistani Rupees) |
-| Split strategy | Time-based — train ≤ 2022, test > 2022 |
+| Split strategy | Time-based, train <= 2022, test > 2022 |
 
 ### Raw Fields
 
@@ -287,12 +228,6 @@ V1 wins on both MAPE and R². Adding more features (V2) does not improve perform
 | `transmission` | string | Automatic or Manual |
 | `price_pkr` | float | Listed price in Pakistani Rupees |
 
-### Why Pakwheels?
-
-Pakwheels is the dominant used car marketplace in Pakistan with hundreds of thousands of active listings. Prices on Pakwheels reflect real market values — buyers and sellers negotiate based on these listed prices. The dataset captures genuine supply-demand pricing rather than dealership catalogue prices, making it a realistic and challenging regression target.
-
-The dataset also captures an interesting economic phenomenon: the USD/PKR exchange rate is one of the most predictive features for car prices in Pakistan. The Pakistani Rupee depreciated sharply between 2022 and 2025, driving imported car prices up significantly. This macroeconomic factor is explicitly encoded as a feature.
-
 ---
 
 ## Data Cleaning and Leakage Validation
@@ -303,68 +238,89 @@ The dataset also captures an interesting economic phenomenon: the USD/PKR exchan
 Raw 7,995 rows
       |
       v
-Drop exact duplicates                    → removed ~200 rows
+Drop exact duplicates          -> removed ~200 rows
       |
       v
-Drop rows with null price or year        → removed ~50 rows
+Drop rows with null price/year -> removed ~50 rows
       |
       v
-Clip price outliers                      → remove listings < 200,000 PKR
-      |                                    and > 100,000,000 PKR
-      v                                    (likely data entry errors)
-Filter year range 2005–2025              → remove pre-2005 classics
-      |                                    (too few, distort distribution)
+Clip price outliers            -> remove < 200,000 PKR and > 100,000,000 PKR
+      |
       v
-Standardise mileage                      → convert any km to km
-      |                                    (some listings in miles)
+Filter year range 2005-2025    -> remove pre-2005 classics
+      |
       v
-Clean 7,491 rows → pakwheels_final.csv
+Clean 7,491 rows -> pakwheels_final.csv
 ```
 
 ### Leakage Validation
 
-Data leakage is the most common way ML projects produce artificially good results. This project uses a strict **time-based split** instead of a random split to prevent it.
+This project uses a strict time-based split instead of a random split:
 
-**Why random split would cause leakage:**
-A random 80/20 split mixes listings from all years across train and test. A 2020 listing in the test set has many similar 2020 listings in the training set. The model essentially memorises market conditions for each year rather than learning to generalise.
-
-**How time-based split prevents it:**
 ```
-Train: all listings with manufacture_year ≤ 2022
+Train: all listings with manufacture_year <= 2022
 Test:  all listings with manufacture_year > 2022
 ```
 
-The model is trained only on historical data and evaluated on future data it has never seen. This is how a production model would actually be used — trained on past listings to predict prices for newer cars.
-
-**Additional leakage checks run by `check_leakage.py`:**
+Additional leakage checks run by `check_leakage.py`:
 - Confirms no test rows appear in training data
 - Confirms `price_pkr` is not included as a feature
 - Confirms target encoding for `make` and `model` is computed only from training data
-- Confirms the USD/PKR rate used per listing reflects the rate at the time of listing, not future rates
+- Confirms the USD/PKR rate reflects the rate at the time of listing, not future rates
 
 ---
 
 ## Exploratory Data Analysis
 
-8 EDA plots were generated during exploration. Key findings:
+8 EDA plots were generated during exploration, covering price distributions, market patterns, and feature relationships.
 
 ### Price Distribution
-The price distribution is right-skewed with a long tail. Most listings fall between 1,000,000 and 8,000,000 PKR. The model trains on `log1p(price_pkr)` to normalise this skew and improve regression performance.
+
+![Price Distribution](plots/eda_01_price_distribution.png)
+
+Most listings fall between 1,000,000 and 8,000,000 PKR. The distribution is right-skewed with a long tail of luxury vehicles. The model trains on `log1p(price_pkr)` to normalise this skew.
 
 ### Price vs USD/PKR Rate
-A clear positive correlation exists between the USD/PKR exchange rate and car prices. As the Rupee devalued from ~160 PKR/USD in 2021 to ~280+ PKR/USD in 2023–2024, car prices rose proportionally. This confirms that `usd_pkr` is a necessary feature for temporal generalisation.
 
-### Top Makes by Volume
-Suzuki, Toyota, and Honda dominate listings, accounting for over 70% of the dataset. Suzuki Alto and Toyota Corolla are the most listed models by far.
+![Price vs USD/PKR](plots/eda_02_price_vs_usdpkr.png)
+
+A clear positive correlation exists between the USD/PKR exchange rate and car prices. As the Rupee devalued from ~160 PKR/USD in 2021 to ~280+ PKR/USD in 2023, car prices rose proportionally. This confirms that `usd_pkr` is a necessary feature for temporal generalisation.
+
+### Top Car Makes by Volume
+
+![Top Makes](plots/eda_03_top_makes.png)
+
+Toyota, Honda, and Suzuki dominate listings, accounting for over 70% of the dataset. Suzuki Alto and Toyota Corolla are the most listed models by volume.
 
 ### Price by Make
-Significant price variation exists across makes. Land Rover and Mercedes listings (rare, < 1% of data) show 5–10x higher prices than Suzuki. This large price range makes target encoding of `make` and `model` critical — raw label encoding would not capture the ordinal price relationship.
+
+![Price by Make](plots/eda_04_price_by_make.png)
+
+Significant price variation exists across makes. This large price range confirms why target encoding of `make` and `model` is critical.
 
 ### Mileage vs Price
-A clear negative correlation: higher mileage cars sell for less. The relationship is non-linear — mileage impact is stronger in the 0–100,000 km range and flattens for high-mileage vehicles, which XGBoost handles naturally.
+
+![Mileage vs Price](plots/eda_05_mileage_vs_price.png)
+
+A clear negative correlation: higher mileage cars sell for less. The relationship is non-linear, with mileage impact strongest in the 0 to 100,000 km range. XGBoost captures this naturally through its tree structure.
 
 ### Correlation Heatmap
+
+![Correlation](plots/eda_06_correlation.png)
+
 `engine_cc`, `manufacture_year`, `make_enc`, and `model_enc` show the strongest correlations with price. `mileage_km` shows a strong negative correlation. `usd_pkr` shows moderate positive correlation.
+
+### Fuel Type Distribution
+
+![Fuel Type](plots/eda_07_fuel_type.png)
+
+Petrol dominates at over 85% of listings. Hybrid vehicles represent a growing segment.
+
+### Transmission Distribution
+
+![Transmission](plots/eda_08_transmission.png)
+
+Automatic transmission vehicles make up the majority of listings and command a price premium over manual transmission vehicles of comparable specifications.
 
 ---
 
@@ -372,45 +328,37 @@ A clear negative correlation: higher mileage cars sell for less. The relationshi
 
 ### Feature Sets Tested
 
-**V1 — 8 features (WINNER)**
+**V1, 8 features (WINNER)**
 ```
-manufacture_year    mileage_km      engine_cc
-fuel_type_enc       transmission_enc  usd_pkr
+manufacture_year    mileage_km       engine_cc
+fuel_type_enc       transmission_enc usd_pkr
 make_enc            model_enc
 ```
 
-**V2 — 12 features (V1 + extras)**
+**V2, 12 features (V1 + extras)**
 ```
 All V1 features +
 car_age             mileage_per_year
 engine_per_year     price_segment_enc
 ```
 
-**V3 — 6 features (reduced)**
+**V3, 6 features (reduced)**
 ```
-manufacture_year    mileage_km      engine_cc
-fuel_type_enc       transmission_enc  usd_pkr
+manufacture_year    mileage_km       engine_cc
+fuel_type_enc       transmission_enc usd_pkr
 (make_enc and model_enc removed)
 ```
 
-### Why V1 Wins
-
-V2 adds derived features (car_age, mileage_per_year) that are highly correlated with existing features (manufacture_year, mileage_km). XGBoost already captures these interactions internally through its tree structure. Adding pre-computed interactions as explicit features creates redundancy that slightly hurts generalisation.
-
-V3 removes `make_enc` and `model_enc`, which are the two most important features according to SHAP. A Toyota Corolla and a Suzuki Alto with identical specifications sell for very different prices — brand and model identity are essential signals.
-
 ### Target Encoding
 
-`make` and `model` are high-cardinality categorical features with dozens and hundreds of unique values respectively. One-hot encoding would create hundreds of sparse binary columns. Label encoding would impose an arbitrary ordinal relationship.
-
-Target encoding replaces each category with the mean `log1p(price_pkr)` of that category in the **training data only**:
+Target encoding replaces each category with the mean `log1p(price_pkr)` of that category in the training data only:
 
 ```
 make_enc[Toyota] = mean(log1p(price)) for all Toyota training rows
 make_enc[Suzuki] = mean(log1p(price)) for all Suzuki training rows
 ```
 
-This captures the price-level information of each make/model in a single numeric feature. Encoding is computed exclusively from training data and applied to test data to prevent leakage.
+Encoding is computed exclusively from training data and applied to test data to prevent leakage.
 
 ---
 
@@ -418,84 +366,57 @@ This captures the price-level information of each make/model in a single numeric
 
 ### XGBoost
 
-XGBoost (Extreme Gradient Boosting) is an ensemble of decision trees trained sequentially, where each new tree corrects the residual errors of the previous ones.
-
-**Why XGBoost for this problem:**
-- Handles mixed feature types (numeric + encoded categorical) natively
+Why XGBoost for this problem:
+- Handles mixed feature types natively
 - Robust to outliers in both features and target
-- Captures non-linear interactions (engine_cc × year, make × mileage) without explicit feature crosses
-- Built-in regularisation (L1/L2) prevents overfitting on the relatively small dataset
-- `hist` tree method makes training fast even with 8 features and 6,543 rows
+- Captures non-linear interactions without explicit feature crosses
+- Built-in regularisation (L1/L2) prevents overfitting
+- `hist` tree method makes training fast
 
-**Target transformation:**
-The model trains on `log1p(price_pkr)` rather than raw price. This compresses the right-skewed price distribution, making the regression target more symmetric and reducing the influence of high-price outliers on the loss function. Predictions are transformed back with `expm1()` at inference time.
+The model trains on `log1p(price_pkr)` rather than raw price. Predictions are transformed back with `expm1()` at inference time.
 
 ### Hyperparameter Tuning with Optuna
 
 Optuna runs 50 trials of Bayesian optimisation, searching for the combination of hyperparameters that minimises MAPE on the test set.
 
-**Search space:**
-
-| Parameter | Range | Best Value |
-|:----------|:------|:-----------|
-| `n_estimators` | 100 – 1000 | logged |
-| `max_depth` | 3 – 10 | logged |
-| `learning_rate` | 0.01 – 0.3 | logged |
-| `subsample` | 0.5 – 1.0 | logged |
-| `colsample_bytree` | 0.5 – 1.0 | logged |
-| `reg_alpha` | 1e-8 – 10.0 | logged |
-| `reg_lambda` | 1e-8 – 10.0 | logged |
-| `min_child_weight` | 1 – 10 | logged |
-| `gamma` | 0 – 5 | logged |
-
-All best parameters are logged to MLflow and visible in the experiment tracking UI.
-
-**Early stopping:**
-Each trial uses `early_stopping_rounds=50` — if the model's validation MAPE does not improve for 50 consecutive boosting rounds, training stops. This prevents overfitting and speeds up the search.
+| Parameter | Range |
+|:----------|:------|
+| `max_depth` | 3 to 10 |
+| `learning_rate` | 0.01 to 0.3 |
+| `subsample` | 0.5 to 1.0 |
+| `colsample_bytree` | 0.5 to 1.0 |
+| `reg_alpha` | 1e-8 to 10.0 |
+| `reg_lambda` | 1e-8 to 10.0 |
+| `min_child_weight` | 1 to 10 |
+| `gamma` | 0 to 5 |
 
 ---
 
 ## SHAP Explainability
 
-SHAP (SHapley Additive exPlanations) explains individual predictions by attributing each feature's contribution to the difference between the model's output and the baseline (average) prediction.
+### Feature Importance
 
-### Global Feature Importance
+![SHAP Importance](plots/shap_importance.png)
 
-The SHAP importance plot ranks all 8 features by their mean absolute SHAP value across the test set:
-
-```
-engine_cc          ████████████████████  most important
-model_enc          ████████████████
-make_enc           ████████████
-manufacture_year   ████████
-usd_pkr            ██████
-mileage_km         █████
-transmission_enc   ███
-fuel_type_enc      ██
-```
-
-Engine displacement is the strongest single predictor of price. A 660cc Suzuki Alto and a 3,500cc Toyota Land Cruiser are priced orders of magnitude apart — this signal dominates.
-
-`model_enc` and `make_enc` rank second and third, confirming that brand identity carries significant price information beyond what physical specifications alone can explain.
+Engine displacement is the strongest single predictor of price. `model_enc` and `make_enc` rank second and third, confirming that brand identity carries significant price information beyond physical specifications alone.
 
 ### Beeswarm Plot
 
-The SHAP beeswarm plot shows the distribution of SHAP values for each feature across all test samples. Each dot represents one car:
+![SHAP Beeswarm](plots/shap_beeswarm.png)
 
-- **Red dots** (high feature value) pushed right mean: high values of that feature increase predicted price
-- **Blue dots** (low feature value) pushed left mean: low values decrease predicted price
+Each dot represents one car in the test set. Red dots (high feature value) pushed right mean high values of that feature increase predicted price. Blue dots pushed left mean low values decrease predicted price.
 
-For `engine_cc`: red (large engines) push prices up strongly. For `mileage_km`: red (high mileage) pushes prices *down* — confirming the expected relationship.
+For `engine_cc`: red (large engines) push prices up strongly. For `mileage_km`: red (high mileage) pushes prices down, confirming the expected relationship.
 
 ### Per-Prediction Explanations at Inference
 
-The `/predict` API endpoint returns the top 3 SHAP features for every prediction, allowing users to understand *why* the model estimated a specific price:
+The `/predict` endpoint returns the top 3 SHAP features for every prediction:
 
 ```json
 "shap_top_features": [
-  {"feature": "engine_cc",       "impact": 0.1167, "direction": "increases price"},
-  {"feature": "manufacture_year","impact": 0.0473, "direction": "increases price"},
-  {"feature": "usd_pkr",         "impact": 0.0376, "direction": "increases price"}
+  {"feature": "engine_cc",        "impact": 0.1167, "direction": "increases price"},
+  {"feature": "manufacture_year", "impact": 0.0473, "direction": "increases price"},
+  {"feature": "usd_pkr",          "impact": 0.0376, "direction": "increases price"}
 ]
 ```
 
@@ -503,35 +424,21 @@ The `/predict` API endpoint returns the top 3 SHAP features for every prediction
 
 ## Drift Monitoring
 
-Model drift occurs when real-world data distributions shift away from the training distribution, causing model performance to degrade over time.
-
-### Temporal Validation Strategy
-
-Instead of synthetic drift injection, this project uses **real temporal drift** — validating the model against data from years it was not trained on:
-
-```python
-for year in [2023, 2024, 2025]:
-    X_yr = X_test[X_test['manufacture_year'] == year]
-    y_yr = y_test[X_test['manufacture_year'] == year]
-    preds = model.predict(X_yr)
-    mape = mean_absolute_percentage_error(y_yr, preds)
-```
-
 ### Drift Evidence
 
-```
-Training period: 2015 – 2022
-                        
-2023 (1 year out)  → MAPE  7.54%   ✅ Acceptable
-2024 (2 years out) → MAPE 10.83%   ⚠️  Degrading
-2025 (3 years out) → MAPE 14.87%   ❌  Retrain needed
-```
+![Drift Evidence](plots/drift_evidence.png)
 
-The 14.87% MAPE for 2025 data crosses the retraining threshold (>12% MAPE). The primary driver is the USD/PKR exchange rate — the Rupee's continued devaluation pushes car prices in ways that the 2015-2022 training data cannot fully capture.
+The chart shows MAPE rising from 7.54% in 2023 to 14.87% in 2025 as the model is evaluated on data further from its training distribution. The USD/PKR rate (blue line) tracks closely with this degradation, confirming that currency devaluation is the primary driver of model drift.
+
+| Year | MAPE | R2 | Interpretation |
+|:-----|:-----|:---|:---------------|
+| 2023 | 7.54% | 0.86 | Model performs well, market conditions similar to training data |
+| 2024 | 10.83% | 0.81 | Mild degradation, PKR devaluation begins to shift prices |
+| 2025 | 14.87% | 0.74 | Clear drift, post-2022 data shows significant market shift |
+
+The 14.87% MAPE for 2025 crosses the retraining threshold of 12%, triggering the automated retraining pipeline.
 
 ### Drift API Endpoint
-
-The `/drift-summary` endpoint returns current drift metrics so monitoring can be automated:
 
 ```json
 {
@@ -549,34 +456,11 @@ The `/drift-summary` endpoint returns current drift metrics so monitoring can be
 
 ## MLflow Experiment Tracking
 
-All experiments are tracked using MLflow with a local file store (`mlruns/`).
-
-### Tracked Experiments
-
 | Run Name | Description |
 |:---------|:------------|
 | baseline_xgb | Initial XGBoost with default parameters |
 | optuna_v1_8features | Best Optuna run on V1 feature set |
-| drift_validation | Temporal validation across 2023–2025 |
-
-### What is Logged Per Run
-
-```
-Parameters:  all Optuna best hyperparameters
-             feature set version (V1 / V2 / V3)
-             n_features, early_stopping_rounds
-
-Metrics:     mape, r2, rmse, mae
-             mape_yr_2023, mape_yr_2024, mape_yr_2025
-             r2_yr_2023, r2_yr_2024, r2_yr_2025
-
-Artefacts:   xgb_best.json (registered model)
-             shap_importance.png
-             shap_beeswarm.png
-
-Model:       registered as "pakistan-car-price-xgb"
-             promoted to Production stage
-```
+| drift_validation | Temporal validation across 2023 to 2025 |
 
 ### Running MLflow UI
 
@@ -591,27 +475,17 @@ Open `http://127.0.0.1:5000` to view all runs, compare metrics, and inspect arte
 
 ## FastAPI Serving
 
-The API is built with FastAPI and serves predictions via a REST interface with automatic documentation.
-
 ### Endpoints
 
 | Method | Endpoint | Description |
 |:-------|:---------|:------------|
-| `GET` | `/` | Root health check — returns API status |
-| `GET` | `/health` | Detailed health — model loaded, version, uptime |
+| `GET` | `/` | Root health check |
+| `GET` | `/health` | Detailed health, model loaded, version, uptime |
 | `POST` | `/predict` | Car price prediction with SHAP explanation |
 | `GET` | `/drift-summary` | Drift metrics by year |
 | `GET` | `/drift-report` | Full drift report as HTML |
 | `GET` | `/fuel-types` | Valid fuel type values |
 | `GET` | `/transmission-types` | Valid transmission values |
-
-### Swagger UI
-
-Once the API is running, full interactive documentation is available at:
-
-```
-http://localhost:8000/docs
-```
 
 ### Prediction Request
 
@@ -651,10 +525,6 @@ POST /predict
 
 ## Docker Containerisation
 
-The application is fully containerised using Docker. The container bundles the model, training reference data, and API into a single portable image.
-
-### Dockerfile
-
 ```dockerfile
 FROM python:3.11-slim
 
@@ -677,11 +547,17 @@ EXPOSE 8000
 
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
 ```
+
+```bash
+docker build -t car-price-api .
+docker run -p 8000:8000 car-price-api
+```
+
 ---
 
 ## GitHub Actions CI/CD Pipeline
 
-The entire MLOps lifecycle is automated using GitHub Actions. Every Sunday at midnight (or on manual trigger), the pipeline runs automatically, checking for drift, retraining if needed, and deploying the new model to production without any manual intervention.
+The entire MLOps lifecycle is automated using GitHub Actions. Every Sunday at midnight, the pipeline runs automatically, checking for drift, retraining if needed, and deploying the new model to production without any manual intervention.
 
 ### Pipeline Flow
 
@@ -692,22 +568,15 @@ Trigger (scheduled / push / manual)
 +---------------------------+
 |   JOB 1: Leakage Check    |
 |   check_leakage.py        |
-|   Validates train/test    |
-|   split integrity         |
 +-------------+-------------+
               |
               v
 +---------------------------+
 |   JOB 2: Drift Detection  |
 |   drift_check.py          |
-|   Computes MAPE on test   |
-|   set by year             |
-|                           |
 |   MAPE <= 12% -> STOP     |
 |   MAPE >  12% -> RETRAIN  |
 +-------------+-------------+
-              |
-        drift detected?
               |
               v
 +---------------------------+
@@ -717,33 +586,25 @@ Trigger (scheduled / push / manual)
 |   Optuna 50 trials        |
 |   MLflow logging          |
 |   compare_models.py       |
-|                           |
 |   improvement < 0.5%      |
 |        -> STOP            |
 |   improvement >= 0.5%     |
 |        -> PROMOTE         |
 +-------------+-------------+
               |
-        model promoted?
-              |
               v
 +---------------------------+
 |   JOB 4: Docker Build     |
-|   docker build            |
-|   docker push             |
+|   docker build + push     |
 |   -> murtaza23/           |
 |     car-price-api:latest  |
-|   -> murtaza23/           |
-|     car-price-api:{sha}   |
 +-------------+-------------+
               |
               v
 +---------------------------+
 |   JOB 5: Deploy to EC2    |
 |   SSH into EC2            |
-|   docker pull latest      |
-|   docker stop old         |
-|   docker run new          |
+|   docker pull + run       |
 |   API live at             |
 |   13.61.178.169:8000      |
 +---------------------------+
@@ -755,22 +616,18 @@ Trigger (scheduled / push / manual)
 |:--------|:-----|:----------|
 | Scheduled | Every Sunday midnight UTC | Full pipeline |
 | Push to main | When `data/`, `scripts/`, `api/`, `models/`, or `Dockerfile` changes | Full pipeline |
-| Manual (`workflow_dispatch`) | Any time from GitHub Actions UI | Full pipeline, with option to force retrain |
+| Manual | Any time from GitHub Actions UI | Full pipeline, with option to force retrain |
 
 ### Retraining Logic
 
-The pipeline only retrains when drift is detected, avoiding unnecessary compute:
-
 ```python
 # drift_check.py
-overall_mape > threshold          # overall MAPE exceeds 12%
+overall_mape > 12.0
 OR
-max(mape_2024, mape_2025) > 12.0  # recent years show degradation
+max(mape_2024, mape_2025) > 12.0
 ```
 
 ### Model Promotion Logic
-
-A newly retrained model is only promoted to production if it outperforms the current model:
 
 ```python
 # compare_models.py
@@ -778,29 +635,18 @@ improvement = current_mape - new_mape
 promoted = improvement >= 0.5  # must be at least 0.5% better
 ```
 
-If the new model is worse or only marginally better, the current model stays in production. This prevents deploying a worse model due to randomness in the Optuna search.
-
-### GitHub Secrets and Variables Used
+### GitHub Secrets and Variables
 
 | Name | Type | Purpose |
 |:-----|:-----|:--------|
-| `DOCKERHUB_TOKEN` | Secret | Docker Hub authentication for pushing images |
-| `EC2_SSH_KEY` | Secret | Private key for SSH into EC2 instance |
-| `DOCKERHUB_USERNAME` | Variable | Docker Hub username (murtaza23) |
-| `EC2_HOST` | Variable | EC2 public IP (13.61.178.169) |
-
-### Artifacts Saved Per Run
-
-Every pipeline run saves:
-- `drift-report/drift_report.json` — per-year MAPE breakdown
-- `retrain-artifacts/mlruns/` — MLflow experiment data
-- `retrain-artifacts/reports/comparison_report.json` — old vs new model comparison
+| `DOCKERHUB_TOKEN` | Secret | Docker Hub authentication |
+| `EC2_SSH_KEY` | Secret | Private key for SSH into EC2 |
+| `DOCKERHUB_USERNAME` | Variable | Docker Hub username |
+| `EC2_HOST` | Variable | EC2 public IP |
 
 ---
 
 ## AWS EC2 Deployment
-
-The FastAPI application is deployed on an AWS EC2 instance running Docker. The instance pulls the latest image from Docker Hub and runs the container on port 8000.
 
 ### Infrastructure
 
@@ -834,33 +680,20 @@ GitHub Actions (CI/CD)
         v
   FastAPI Container
   http://13.61.178.169:8000
-        |
-        | REST API calls
-        v
-  Frontend (Lovable)
-  Pakistan Car Price Predictor
 ```
 
 ### EC2 Setup (one-time)
 
 ```bash
-# Connect via EC2 Instance Connect (browser terminal)
-# No SSH key file needed
-
-# Install Docker
 sudo apt-get update -y
 sudo apt-get install -y docker.io
 sudo systemctl start docker
 sudo systemctl enable docker
 sudo usermod -aG docker ubuntu
 
-# Pull and run the image
 sudo docker pull murtaza23/car-price-api:latest
 sudo docker run -d -p 8000:8000 --name car-price-api \
   murtaza23/car-price-api:latest
-
-# Verify it is running
-sudo docker ps
 ```
 
 ### Security Group Rules
@@ -872,80 +705,29 @@ sudo docker ps
 | HTTPS | 443 | 0.0.0.0/0 | HTTPS traffic |
 | Custom TCP | 8000 | 0.0.0.0/0 | FastAPI application |
 
-### Auto-Deployment
-
-Every time GitHub Actions promotes a new model, EC2 is updated automatically:
-
-```bash
-# Run by GitHub Actions via appleboy/ssh-action
-sudo docker pull murtaza23/car-price-api:latest
-sudo docker stop car-price-api || true
-sudo docker rm car-price-api || true
-sudo docker run -d -p 8000:8000 --name car-price-api \
-  murtaza23/car-price-api:latest
-sudo docker image prune -f
-```
-
-### Why EC2 Over PaaS (Render/Railway/HuggingFace)
-
-| Factor | EC2 | Render/Railway |
-|:-------|:----|:---------------|
-| Control | Full server control | Limited |
-| Docker | Native | Abstracted |
-| CI/CD integration | SSH deploy via Actions | Git-based only |
-| Cost | Free tier (t3.micro) | Free tier available |
-| MLOps realism | Matches real production | Simplified |
-| Portfolio signal | Strong, real cloud infra | Weaker |
-
-EC2 was chosen because it reflects how ML APIs are actually deployed at companies, containerised, on cloud VMs, with automated CI/CD pipelines handling zero-touch deployment.
-### Build and Run
-
-```bash
-# Build the image
-docker build -t car-price-api .
-
-# Run the container
-docker run -p 8000:8000 car-price-api
-
-# Using docker-compose
-docker-compose up
-```
-
-### Key Containerisation Decisions
-
-**Python 3.11-slim base:** Matches the local development environment exactly. The XGBoost model was trained with Python 3.11 and XGBoost 2.1.4 — using a mismatched version inside the container caused silent base_score format errors that produced wrong predictions.
-
-**XGBoost version pinned to 2.1.4:** XGBoost 3.x changed the internal base_score serialisation format from a plain float to a bracketed string (`[1.5314361E1]`). SHAP 0.46.0 cannot parse this format. Pinning to 2.1.4 and retraining the model ensures SHAP works correctly inside the container.
-
-**SHAP included in the container:** Per-prediction SHAP values are computed at inference time, not pre-computed. The TreeExplainer loads the model and background data (X_train.csv sample) at startup.
-
 ---
 
 ## Key Technical Decisions
 
 ### Why time-based split instead of random split?
 
-A random split on temporal data causes leakage. If a 2020 car appears in the test set, the model has seen hundreds of similar 2020 cars during training. The model learns year-specific market conditions rather than generalising. A time-based split — train on ≤ 2022, test on > 2022 — reflects how the model would actually be used in production: trained on historical data, deployed to price newer cars.
+A random split on temporal data causes leakage. A time-based split, train on <= 2022 and test on > 2022, reflects how the model would actually be used in production: trained on historical data, deployed to price newer cars.
 
 ### Why log1p transformation on the target?
 
-Raw car prices range from ~200,000 to ~15,000,000 PKR — a 75x range. XGBoost's squared error loss gives disproportionate weight to high-price outliers. `log1p` compresses this range to approximately 12–16, making the loss landscape smoother and the model less sensitive to extreme values. The transformation is reversed with `expm1()` at prediction time.
+Raw car prices range from ~200,000 to ~15,000,000 PKR, a 75x range. `log1p` compresses this range to approximately 12 to 16, making the loss landscape smoother and the model less sensitive to extreme values.
 
 ### Why target encoding instead of one-hot encoding for make and model?
 
-`make` has ~40 unique values. `model` has ~300+ unique values. One-hot encoding would create 340+ binary columns, most of which are nearly zero for any given listing. Target encoding replaces each category with a single number — the mean log price for that brand or model — capturing the price-level signal in one dimension. The key constraint: encoding is computed from training data only and applied to test data, preventing leakage.
+`make` has ~40 unique values. `model` has ~300+ unique values. One-hot encoding would create 340+ binary columns. Target encoding replaces each category with the mean log price for that brand or model in a single numeric feature, computed from training data only.
 
 ### Why Optuna instead of GridSearchCV?
 
-GridSearchCV evaluates every combination in a predefined grid. With 9 hyperparameters and even 3 values each, that is 3⁹ = 19,683 combinations — computationally infeasible. Optuna uses Bayesian optimisation (Tree-structured Parzen Estimator) to intelligently sample the search space, focusing on regions that have shown good results in previous trials. 50 Optuna trials find better hyperparameters than hundreds of random or grid samples.
-
-### Why SHAP TreeExplainer instead of generic SHAP?
-
-TreeExplainer is specifically designed for tree ensemble models (XGBoost, LightGBM, Random Forest). It computes exact Shapley values using the tree structure directly — in polynomial time rather than exponential time. For other model types, SHAP uses sampling approximations. TreeExplainer gives exact, fast attributions for every prediction.
+With 9 hyperparameters and 3 values each, GridSearchCV would require 3^9 = 19,683 combinations. Optuna uses Bayesian optimisation to intelligently sample the search space, finding better hyperparameters in 50 trials.
 
 ### Why usd_pkr as a feature?
 
-Pakistan's car market is heavily tied to the US Dollar. Many cars (especially Japanese imports) are priced in USD and converted to PKR at the current exchange rate. Including the exchange rate at the time of listing allows the model to separate "real" price changes from currency-driven nominal price changes. Without this feature, a 2023 listing priced at 8,000,000 PKR looks far more expensive than a 2020 listing at 3,000,000 PKR — but after accounting for the 2x PKR devaluation, the real price change is much smaller. This feature is also the primary driver of the temporal drift pattern observed in the validation results.
+Many cars in Pakistan are priced relative to the US Dollar. Including the exchange rate at the time of listing allows the model to separate real price changes from currency-driven nominal price changes. It is also the primary driver of the temporal drift pattern.
 
 ---
 
@@ -961,11 +743,12 @@ Pakistan's car market is heavily tied to the US Dollar. Many cars (especially Ja
 | API | FastAPI | 0.111.0 | REST API framework |
 | Server | Uvicorn | 0.29.0 | ASGI server |
 | Container | Docker | latest | Containerisation |
+| Cloud | AWS EC2 | t3.micro | Production deployment |
+| CI/CD | GitHub Actions | latest | Automated pipeline |
 | Data | pandas | 2.2.2 | DataFrames and CSV I/O |
 | Data | NumPy | 1.26.4 | Array operations |
 | Features | scikit-learn | 1.4.2 | Metrics and preprocessing |
 | Validation | Pydantic | 2.7.1 | Request/response schemas |
-| Version Control | Git | 2.53+ | Source control |
 
 ---
 
@@ -975,7 +758,7 @@ Pakistan's car market is heavily tied to the US Dollar. Many cars (especially Ja
 car-price-mlops/
 |
 +-- api/
-|    +-- main.py                  <- FastAPI application — all endpoints
+|    +-- main.py                  <- FastAPI application, all endpoints
 |    +-- feature_config.py        <- Feature names, encodings, constants
 |
 +-- data/
@@ -993,28 +776,29 @@ car-price-mlops/
 |    +-- shap_importance.png      <- Global SHAP feature importance
 |    +-- shap_beeswarm.png        <- SHAP beeswarm distribution plot
 |    +-- drift_evidence.png       <- Temporal MAPE drift chart
-|    +-- eda_01_price_dist.png    <- Price distribution histogram
-|    +-- eda_02_price_usdpkr.png  <- Price vs USD/PKR scatter
-|    +-- eda_03_top_makes.png     <- Top makes by listing volume
-|    +-- eda_04_price_by_make.png <- Boxplot: price by manufacturer
-|    +-- eda_05_mileage.png       <- Mileage vs price scatter
-|    +-- eda_06_correlation.png   <- Feature correlation heatmap
-|    +-- eda_07_fuel.png          <- Fuel type distribution
-|    +-- eda_08_transmission.png  <- Transmission distribution
+|    +-- eda_01_price_distribution.png
+|    +-- eda_02_price_vs_usdpkr.png
+|    +-- eda_03_top_makes.png
+|    +-- eda_04_price_by_make.png
+|    +-- eda_05_mileage_vs_price.png
+|    +-- eda_06_correlation.png
+|    +-- eda_07_fuel_type.png
+|    +-- eda_08_transmission.png
 |
 +-- scripts/
 |    +-- check_leakage.py         <- Leakage validation script
 |    +-- prepare_data.py          <- Data preparation and feature engineering
 |    +-- train_model.py           <- Full training pipeline (Optuna + MLflow)
+|    +-- drift_check.py           <- Drift detection for CI/CD
+|    +-- compare_models.py        <- Model comparison and promotion logic
+|
++-- .github/
+|    +-- workflows/
+|         +-- mlops_pipeline.yml  <- Full CI/CD pipeline
 |
 +-- mlruns/                       <- MLflow tracking data (auto-generated)
-|
-+-- notebooks/
-|    +-- Pak_wheels_price.ipynb   <- Full EDA and modelling notebook
-|
 +-- Dockerfile                    <- Container definition
 +-- docker-compose.yml            <- Multi-container orchestration
-+-- .dockerignore                 <- Files excluded from Docker build context
 +-- requirements.txt              <- All Python dependencies
 +-- README.md
 ```
@@ -1026,51 +810,36 @@ car-price-mlops/
 ### Option 1 — Docker (recommended)
 
 ```bash
-# Clone the repository
 git clone https://github.com/MurtazaMajid/Pak-wheels-car-price-prediction-full-mlops-pipeline-
 cd Pak-wheels-car-price-prediction-full-mlops-pipeline-
 
-# Build and run
 docker build -t car-price-api .
 docker run -p 8000:8000 car-price-api
 
-# Open Swagger UI
-# http://localhost:8000/docs
+# Open http://localhost:8000/docs
 ```
 
 ### Option 2 — Local Python
 
 ```bash
-# Clone the repository
 git clone https://github.com/MurtazaMajid/Pak-wheels-car-price-prediction-full-mlops-pipeline-
 cd Pak-wheels-car-price-prediction-full-mlops-pipeline-
 
-# Install dependencies
 pip install -r requirements.txt
-
-# Run the API
 uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
 
-# Open Swagger UI
-# http://localhost:8000/docs
+# Open http://localhost:8000/docs
 ```
 
 ### Option 3 — Retrain the Model
 
 ```bash
-# Check for data leakage first
 python scripts/check_leakage.py
-
-# Prepare features
 python scripts/prepare_data.py
-
-# Retrain with Optuna (50 trials, logs to MLflow)
 python scripts/train_model.py
 
-# View MLflow results
 mlflow ui --port 5000
 
-# Rebuild Docker with new model
 docker build --no-cache -t car-price-api .
 docker run -p 8000:8000 car-price-api
 ```
@@ -1081,29 +850,16 @@ docker run -p 8000:8000 car-price-api
 
 ### POST /predict
 
-**Request body:**
-
-| Field | Type | Required | Range | Description |
-|:------|:-----|:---------|:------|:------------|
-| `manufacture_year` | int | Yes | 1990–2026 | Year car was manufactured |
-| `mileage_km` | int | Yes | 0–500,000 | Odometer reading in km |
-| `engine_cc` | int | Yes | 600–8,000 | Engine displacement in cc |
-| `fuel_type` | string | Yes | — | Petrol, Diesel, Hybrid, CNG, Electric |
-| `transmission` | string | Yes | — | Automatic, Manual |
-| `usd_pkr` | float | No | — | USD/PKR rate (defaults to training mean) |
-| `make_enc` | float | No | — | Target-encoded make (defaults to global mean) |
-| `model_enc` | float | No | — | Target-encoded model (defaults to global mean) |
-
-**Response:**
-
-| Field | Type | Description |
-|:------|:-----|:------------|
-| `predicted_price_pkr` | float | Predicted price in PKR |
-| `predicted_price_formatted` | string | Human-readable formatted price |
-| `confidence_range` | object | 85%–115% of predicted price |
-| `shap_top_features` | array | Top 3 features driving this prediction |
-| `model_version` | string | Model identifier |
-| `timestamp` | string | Prediction timestamp (UTC) |
+| Field | Type | Required | Description |
+|:------|:-----|:---------|:------------|
+| `manufacture_year` | int | Yes | Year car was manufactured |
+| `mileage_km` | int | Yes | Odometer reading in km |
+| `engine_cc` | int | Yes | Engine displacement in cc |
+| `fuel_type` | string | Yes | Petrol, Diesel, Hybrid, CNG, Electric |
+| `transmission` | string | Yes | Automatic, Manual |
+| `usd_pkr` | float | No | USD/PKR rate (defaults to training mean) |
+| `make_enc` | float | No | Target-encoded make (defaults to global mean) |
+| `model_enc` | float | No | Target-encoded model (defaults to global mean) |
 
 ---
 
@@ -1116,22 +872,22 @@ docker run -p 8000:8000 car-price-api
 | Leakage prevention | Time-based split; target encoding computed on training data only |
 | Exploratory data analysis | 8 plots covering distributions, correlations, and market patterns |
 | Feature engineering | Target encoding, ablation study across 3 feature sets |
-| Gradient boosting | XGBoost with log-transformed target and `hist` tree method |
+| Gradient boosting | XGBoost with log-transformed target and hist tree method |
 | Hyperparameter optimisation | Optuna Bayesian search over 9 parameters, 50 trials |
-| Model explainability | SHAP TreeExplainer — global importance, beeswarm, per-prediction attribution |
+| Model explainability | SHAP TreeExplainer, global importance, beeswarm, per-prediction attribution |
 | Drift monitoring | Temporal validation across 3 future years with retraining threshold |
-| Experiment tracking | MLflow — parameters, metrics, artefacts, model registry, production stage |
+| Experiment tracking | MLflow, parameters, metrics, artefacts, model registry, production stage |
 | API development | FastAPI with Pydantic validation, 6 endpoints, Swagger docs |
-| Containerisation | Docker — dependency management, version pinning, startup validation |
-| Version control | Git — full project history on GitHub |
-| Debugging | Resolved XGBoost 2.x vs 3.x base_score serialisation incompatibility with SHAP |
-| MLOps thinking | Full retrain pipeline: new data → check leakage → retrain → log → redeploy |
+| Containerisation | Docker, dependency management, version pinning, startup validation |
+| CI/CD pipeline | GitHub Actions, 5-job automated pipeline, drift detection, auto-deploy |
+| Cloud deployment | AWS EC2, Docker-based deployment, automated via SSH |
+| Version control | Git, full project history on GitHub |
 
 ---
 
 ## Contact
 
-Built by **Murtaza Majid** — Data Science and AI Student
+Built by **Murtaza Majid**, Data Science and AI Student
 
 [![LinkedIn](https://img.shields.io/badge/LinkedIn-Connect-0A66C2?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/murtaza-majid)
 [![GitHub](https://img.shields.io/badge/GitHub-Follow-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/MurtazaMajid)
