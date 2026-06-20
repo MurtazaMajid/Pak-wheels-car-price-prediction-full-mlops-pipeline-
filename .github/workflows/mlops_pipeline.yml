@@ -151,9 +151,9 @@ jobs:
           git clean -fd
           git fetch origin main
           git reset --hard origin/main
-          git add models/xgb_best.json reports/
-          git commit -m "chore: auto-retrain — new model promoted [skip ci]"
-          git push
+          git add -f models/xgb_best.json reports/
+          git diff --staged --quiet || git commit -m "chore: auto-retrain — new model promoted [skip ci]"
+          git push || true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
